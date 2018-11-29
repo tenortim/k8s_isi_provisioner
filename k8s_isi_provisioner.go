@@ -28,7 +28,7 @@ import (
 
 	"syscall"
 
-	isi "github.com/codedellemc/goisilon"
+	isi "github.com/tenortim/goisilon"
 
 	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"

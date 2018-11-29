@@ -14,7 +14,7 @@
 
 .PHONY: image
 
-IMAGE?=xphyr/k8s_isi_provisioner
+IMAGE?=tenortim/k8s_isi_provisioner
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
 
 image: isi-provisioner

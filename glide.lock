@@ -1,15 +1,8 @@
-hash: 46b179bf11b7cdadcc3b135be2a1be16694972e2c15cb3432c1171230bd2a4d1
-updated: 2017-10-24T21:05:46.266766-04:00
+hash: 4046d090f2df5bfe0afb0f69babd0b5124412a5ab6a4df57951e9d3e96960de1
+updated: 2018-11-29T13:34:27.867741434-08:00
 imports:
-- name: github.com/codedellemc/goisilon
-  version: 2ea94fb4dd4f34507c9d67d8d2e35dcc0edb5f89
-  subpackages:
-  - api
-  - api/json
-  - api/v1
-  - api/v2
-- name: github.com/codedellemc/gournal
-  version: 914f22d81ae2255c67ce7dd7f4c1dcb75c9c619a
+- name: github.com/akutz/gournal
+  version: f6e56fa29076290418175a5105fd0223c66ad1bc
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -69,6 +62,13 @@ imports:
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
 - name: github.com/spf13/pflag
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: github.com/tenortim/goisilon
+  version: 898b93748d912b9f284096229875914636d3828e
+  subpackages:
+  - api
+  - api/json
+  - api/v1
+  - api/v2
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -76,8 +76,6 @@ imports:
 - name: golang.org/x/net
   version: e90d6d0afc4c315a0d87a568ae68577cc15149a0
   subpackages:
-  - context
-  - context/ctxhttp
   - http2
   - http2/hpack
   - idna

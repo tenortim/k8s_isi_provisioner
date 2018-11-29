@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
     - name: k8s-isi-provisioner
-      image: xphyr/k8s_isi_provisioner:latest
+      image: tenortim/k8s_isi_provisioner:latest
       imagePullPolicy: "IfNotPresent"
       env:
         - name: ISI_SERVER

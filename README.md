@@ -1,16 +1,16 @@
 # k8s_isi_provisioner
-[![Build Status](https://travis-ci.org/xphyr/k8s_isi_provisioner.svg?branch=master)](https://travis-ci.org/xphyr/k8s_isi_provisioner.svg?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/xphyr/k8s_isi_provisioner)](https://goreportcard.com/report/github.com/xphyr/k8s_isi_provisioner)
-[![Docker Pulls](https://img.shields.io/docker/pulls/xphyr/k8s_isi_provisioner.svg)](https://hub.docker.com/r/xphyr/k8s_isi_provisioner/)
+[![Build Status](https://travis-ci.org/tenortim/k8s_isi_provisioner.svg?branch=master)](https://travis-ci.org/tenortim/k8s_isi_provisioner.svg?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tenortim/k8s_isi_provisioner)](https://goreportcard.com/report/github.com/tenortim/k8s_isi_provisioner)
+[![Docker Pulls](https://img.shields.io/docker/pulls/tenortim/k8s_isi_provisioner.svg)](https://hub.docker.com/r/tenortim/k8s_isi_provisioner/)
 
 Kubernetes external storage provisioner for Dell Isilon
 
 Based on the following:
 https://github.com/kubernetes-incubator/external-storage
-https://github.com/codedellemc/goisilon
+https://github.com/tenortim/goisilon
 
 Instructions:
-In order to use this external provisioner, you can use the image pushed to docker hub "xphyr/k8s\_isi\_provisioner", or build it yourself.
+In order to use this external provisioner, you can use the image pushed to docker hub "tenortim/k8s\_isi\_provisioner", or build it yourself.
 
 Building
 --------
