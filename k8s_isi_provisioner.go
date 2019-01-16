@@ -221,6 +221,11 @@ func main() {
 	if isiServer == "" {
 		glog.Fatal("ISI_SERVER not set")
 	}
+	isiAPIServer := os.Getenv("ISI_API_SERVER")
+	if isiServer == "" {
+		glog.Info("No API server variable, reverting to ISI_SERVER")
+		isiAPIServer = isiServer
+	}
 	isiPath := os.Getenv("ISI_PATH")
 	if isiPath == "" {
 		glog.Fatal("ISI_PATH not set")
@@ -249,7 +254,7 @@ func main() {
 		glog.Info("ISI_QUOTA_ENABLED not set.  Quota support disabled")
 	}
 
-	isiEndpoint := "https://" + isiServer + ":8080"
+	isiEndpoint := "https://" + isiAPIServer + ":8080"
 	glog.Info("Connecting to Isilon at: " + isiEndpoint)
 	glog.Info("Creating exports at: " + isiPath)
 

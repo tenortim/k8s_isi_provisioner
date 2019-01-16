@@ -59,8 +59,9 @@ This provisioner has support for Isilon Storage Quotas, however they have not be
 ## Parameters
 **Param**|**Description**|**Example**
 :-----:|:-----:|:-----:
-ISI\_SERVER|The DNS name (or IP address) of the Isilon to use | isilon.somedomain.com
-ISI\_PATH|The root path for all exports to be created in| \/ifs\/ose\_exports 
+ISI\_SERVER|The DNS name (or IP address) of the Isilon to use for mount requests| isilon.somedomain.com
+ISI\_API\_SERVER|The DNS name (or IP address) of the Isilon to use for API access to create the volume (defaults to ISI\_SERVER)| isilon-mgmt.somedomain.com
+ISI\_PATH|The root path for all exports to be created in| \/ifs\/ose\_exports
 ISI\_USER|The user to connect to the isilon as|admin
 ISI\_PASS|Password for the user account|password
 ISI\_GROUP|The default group to assign to the share|users
