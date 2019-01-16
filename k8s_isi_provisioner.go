@@ -20,11 +20,11 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path"
 	"strings"
 	"time"
-	"fmt"
 
 	"syscall"
 
@@ -101,7 +101,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		}
 		err := p.isiClient.SetQuotaSize(context.Background(), pvName, pvcSize)
 		if err != nil {
-			glog.Info("Quota set to: %v on volume: %s", pvcSize, pvName)
+			glog.Infof("Quota set to: %v on volume: %s", pvcSize, pvName)
 		}
 	}
 	rcExport, err := p.isiClient.ExportVolume(context.Background(), pvName)
@@ -129,9 +129,9 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		ObjectMeta: metav1.ObjectMeta{
 			Name: options.PVName,
 			Annotations: map[string]string{
-				"isilonProvisionerIdentity": 								p.identity,
-				"isilonVolume":              								pvName,
-				"volume.beta.kubernetes.io/mount-options": 	mountOptions,
+				"isilonProvisionerIdentity":               p.identity,
+				"isilonVolume":                            pvName,
+				"volume.beta.kubernetes.io/mount-options": mountOptions,
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
