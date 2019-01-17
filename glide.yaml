@@ -1,20 +1,17 @@
 package: github.com/tenortim/k8s_isi_provisioner
 import:
 - package: github.com/golang/glog
-- package: github.com/kubernetes-incubator/external-storage
-  version: v2.0.0
+- package: github.com/kubernetes-sigs/sig-storage-lib-external-provisioner
   subpackages:
-  - lib/controller
+  - controller
 - package: k8s.io/apimachinery
-  version: c1c4a7f
   subpackages:
   - pkg/apis/meta/v1
   - pkg/util/wait
 - package: k8s.io/client-go
-  version: "7615377"
+  version: 10.0.0
   subpackages:
   - kubernetes
-  - pkg/api/v1
   - rest
 - package: github.com/tenortim/goisilon
   version: ~1.7.0

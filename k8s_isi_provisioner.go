@@ -31,24 +31,17 @@ import (
 	isi "github.com/tenortim/goisilon"
 
 	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 )
 
 const (
-	provisionerName           = "example.com/isilon"
-	exponentialBackOffOnError = false
-	failedRetryThreshold      = 5
-	serverEnvVar              = "ISI_SERVER"
-	resyncPeriod              = 15 * time.Second
-	leasePeriod               = controller.DefaultLeaseDuration
-	retryPeriod               = controller.DefaultRetryPeriod
-	renewDeadline             = controller.DefaultRenewDeadline
-	termLimit                 = controller.DefaultTermLimit
+	provisionerName = "example.com/isilon"
+	serverEnvVar    = "ISI_SERVER"
 )
 
 type isilonProvisioner struct {
@@ -285,6 +278,6 @@ func main() {
 
 	// Start the provision controller which will dynamically provision isilon
 	// PVs
-	pc := controller.NewProvisionController(clientset, resyncPeriod, provisionerName, isilonProvisioner, serverVersion.GitVersion, exponentialBackOffOnError, failedRetryThreshold, leasePeriod, renewDeadline, retryPeriod, termLimit)
+	pc := controller.NewProvisionController(clientset, provisionerName, isilonProvisioner, serverVersion.GitVersion, controller.ExponentialBackOffOnError(false), controller.FailedProvisionThreshold(5), controller.ResyncPeriod(15*time.Second))
 	pc.Run(wait.NeverStop)
 }
