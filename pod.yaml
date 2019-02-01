@@ -22,3 +22,4 @@ spec:
           value: Users
         - name: ISI_QUOTA_ENABLE
           value: "true"
+  serviceAccount: k8s-isi-provisioner

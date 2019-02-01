@@ -18,15 +18,18 @@ To build this provisioner, ensure you have go, and glide installed.  This code h
 To build the software, run make.
 
 The provisioner requires permissions if you are running it in OpenShift.
+The persistent-volume-provisioner cluster role in OpenShift 3.11 is missing
+the needed endpoints permissions and so permissions are supplied by auth.yaml
+for both OpenShift and pure Kubernetes:
 ```
-oc adm policy add-cluster-role-to-user system:persistent-volume-provisioner system:serviceaccount:k8s-isi-provisioner:default
+oc adm create -f auth.yaml
 ```
-It also requires pemissions if you're running in pure Kubernetes:
+vs
 ```
 kubectl create -f auth.yaml
 ```
 
-To deploy the provisioner, run
+To deploy the provisioner in OpenShift, run
 ```
 oc create -f pod.yaml
 ```
@@ -41,20 +44,25 @@ kubectl create -f pod.yaml
 kubectl create -f class.yaml
 ```
 
-Some versions of Isilon may require the use of NFSv3. In that case, run:
+If it is required to use NFSv3, use the alternate yaml file:
 ```
 kubectl create -f class-with-mount-options.yaml
 ```
 
+Example code to create a persistent volume named isilon-pvc:
+```
+oc create -f claim.yaml
+```
+or on Kubernetes:
+```
+kubectl create -f claim.yaml
+```
 
-To create a persistent volume, create a pvc and add an annotation:
-volume.beta.kubernetes.io/storage-class: "k8s-isilon"
-This will enable the automatic creation of a persistent volume.
 
 Tested against: 
 https://www.emc.com/products-solutions/trial-software-download/isilon.htm
 
-This provisioner has support for Isilon Storage Quotas, however they have not been tested due to not having a license.
+This provisioner has support for Isilon Storage Quotas, but this has not yet been tested.
 
 ## Parameters
 **Param**|**Description**|**Example**

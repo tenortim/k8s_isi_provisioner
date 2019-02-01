@@ -1,7 +1,7 @@
+apiVersion: storage.k8s.io/v1
 kind: StorageClass
-apiVersion: storage.k8s.io/v1beta1
 metadata:
-  name: k8s-isilon
-provisioner: example.com/isilon
+  name: isilon
+provisioner: isilon.com/isilon
 parameters:
   mountOptions: "nfsvers=3" # this should be a comma separated list of options

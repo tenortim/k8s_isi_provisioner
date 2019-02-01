@@ -1,13 +1,12 @@
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: k8s-isi-provisioner
 ---
 kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: k8s-isi-provisioner-runner
+  name: k8s-isi-provisioner
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -21,23 +20,45 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["list", "watch", "create", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["services", "endpoints"]
-    verbs: ["get"]
   - apiGroups: ["extensions"]
     resources: ["podsecuritypolicies"]
     resourceNames: ["nfs-provisioner"]
     verbs: ["use"]
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: run-isi-provisioner
+  name: k8s-isi-provisioner
 subjects:
   - kind: ServiceAccount
     name: k8s-isi-provisioner
     namespace: default
 roleRef:
   kind: ClusterRole
-  name: k8s-isi-provisioner-runner
+  name: k8s-isi-provisioner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-k8s-isi-provisioner
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["list", "watch", "create"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-k8s-isi-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: k8s-isi-provisioner
+    namespace: default
+roleRef:
+  kind: Role
+  name: leader-locking-k8s-isi-provisioner
   apiGroup: rbac.authorization.k8s.io

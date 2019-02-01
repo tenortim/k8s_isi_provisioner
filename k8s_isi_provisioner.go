@@ -37,10 +37,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 )
 
 const (
-	provisionerName = "example.com/isilon"
+	provisionerName = "isilon.com/isilon"
 	serverEnvVar    = "ISI_SERVER"
 )
 
@@ -189,6 +190,20 @@ func main() {
 
 	flag.Parse()
 	flag.Set("logtostderr", "true")
+
+	// Bunch of ugliness to handle klog screwiness that's called
+	// from the leaderelection code called by the provisioner
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
 
 	glog.Info("Starting Isilon Dynamic Provisioner version: " + version)
 	// Create an InClusterConfig and use it to create a client for the controller
