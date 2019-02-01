@@ -14,7 +14,7 @@ In order to use this external provisioner, you can use the image pushed to docke
 
 Building
 --------
-To build this provisioner, ensure you have go, and glide installed.  This code has been tested with Go 1.8 and higher.
+To build this provisioner, ensure you have go installed.  This code requires a minimum of Go 1.11.
 To build the software, run make.
 
 The provisioner requires permissions if you are running it in OpenShift.
@@ -33,6 +33,8 @@ To deploy the provisioner in OpenShift, run
 ```
 oc create -f pod.yaml
 ```
+If you need to create exports in an access zone other than the System zone, set the ISI_ZONE environment variable in pod.yaml.
+
 Create a storage class using the class.yaml file
 ```
 oc create -f class.yaml
@@ -70,6 +72,7 @@ This provisioner has support for Isilon Storage Quotas, but this has not yet bee
 ISI\_SERVER|The DNS name (or IP address) of the Isilon to use for mount requests| isilon.somedomain.com
 ISI\_API\_SERVER|The DNS name (or IP address) of the Isilon to use for API access to create the volume (defaults to ISI\_SERVER)| isilon-mgmt.somedomain.com
 ISI\_PATH|The root path for all exports to be created in| \/ifs\/ose\_exports
+ISI\_ZONE|The access zone for all exports to be created in (defaults to System)|System
 ISI\_USER|The user to connect to the isilon as|admin
 ISI\_PASS|Password for the user account|password
 ISI\_GROUP|The default group to assign to the share|users

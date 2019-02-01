@@ -54,6 +54,8 @@ type isilonProvisioner struct {
 	// The directory to create the new volume in, as well as the
 	// username, password and server to connect to
 	volumeDir string
+	// The access zone in which to create new exports
+	accessZone string
 	// useName    string
 	serverName string
 	// apply/enfoce quotas to volumes
@@ -98,7 +100,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 			glog.Infof("Quota set to: %v on volume: %s", pvcSize, pvName)
 		}
 	}
-	rcExport, err := p.isiClient.ExportVolume(context.Background(), pvName)
+	rcExport, err := p.isiClient.ExportVolumeWithZone(context.Background(), pvName, p.accessZone)
 	glog.Infof("Created Isilon export: %v", rcExport)
 	if err != nil {
 		panic(err)
@@ -238,6 +240,11 @@ func main() {
 	if isiPath == "" {
 		glog.Fatal("ISI_PATH not set")
 	}
+	isiZone := os.Getenv("ISI_ZONE")
+	if isiZone == "" {
+		glog.Info("No access zone variable, defaulting to System")
+		isiZone = "System"
+	}
 	isiUser := os.Getenv("ISI_USER")
 	if isiUser == "" {
 		glog.Fatal("ISI_USER not set")
@@ -287,6 +294,7 @@ func main() {
 		identity:    isiServer,
 		isiClient:   i,
 		volumeDir:   isiPath,
+		accessZone:  isiZone,
 		serverName:  isiServer,
 		quotaEnable: isiQuota,
 	}
