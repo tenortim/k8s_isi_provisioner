@@ -1,4 +1,5 @@
 /*
+Copyright 2019 Tim Wright.
 Copyright 2017 Mark DeNeve.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +33,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -76,14 +77,11 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 
 	// Create a unique volume name based on the namespace requesting the pv
 	pvName := strings.Join([]string{pvcNamespace, pvcName, options.PVName}, "-")
-
-	// path will be required to create a working pv
 	path := path.Join(p.volumeDir, pvName)
 
-	// time to create the volume and export it
-	// as of right now I dont think we need the volume info it returns
+	// Create the mount point directory (k8s volume == isi directory)
 	rcVolume, err := p.isiClient.CreateVolume(context.Background(), pvName)
-	glog.Infof("Created volume: %s", rcVolume)
+	glog.Infof("Created volume mount point directory: %s", rcVolume)
 	if err != nil {
 		return nil, err
 	}
@@ -97,37 +95,26 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		}
 		err := p.isiClient.SetQuotaSize(context.Background(), pvName, pvcSize)
 		if err != nil {
-			glog.Infof("Quota set to: %v on volume: %s", pvcSize, pvName)
+			glog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
 		}
 	}
+	glog.Infof("Creating Isilon export '%s' in zone %s", pvName, p.accessZone)
 	rcExport, err := p.isiClient.ExportVolumeWithZone(context.Background(), pvName, p.accessZone)
-	glog.Infof("Created Isilon export: %v", rcExport)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	glog.Infof("Created Isilon export id: %v", rcExport)
 
 	if err := os.MkdirAll(path, 0777); err != nil {
 		return nil, err
-	}
-
-	// Get the mount options of the storage class
-	mountOptions := ""
-	for k, v := range options.Parameters {
-		switch strings.ToLower(k) {
-		case "mountoptions":
-			mountOptions = v
-		default:
-			return nil, fmt.Errorf("invalid parameter: %q", k)
-		}
 	}
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: options.PVName,
 			Annotations: map[string]string{
-				"isilonProvisionerIdentity":               p.identity,
-				"isilonVolume":                            pvName,
-				"volume.beta.kubernetes.io/mount-options": mountOptions,
+				"isilonProvisionerIdentity": p.identity,
+				"isilonVolume":              pvName,
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
@@ -136,6 +123,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 			Capacity: v1.ResourceList{
 				v1.ResourceName(v1.ResourceStorage): options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)],
 			},
+			MountOptions: options.MountOptions,
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				NFS: &v1.NFSVolumeSource{
 					Server:   p.serverName,
@@ -163,25 +151,24 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 	if !ok {
 		return &controller.IgnoredError{Reason: "No isilon volume defined"}
 	}
-	// Back out the quota settings first
-
+	// Remove quota if enabled
 	if p.quotaEnable {
 		quota, _ := p.isiClient.GetQuota(context.Background(), isiVolume)
 		if quota != nil {
 			if err := p.isiClient.ClearQuota(context.Background(), isiVolume); err != nil {
-				panic(err)
+				return fmt.Errorf("failed to remove quota from %v: %v", isiVolume, err)
 			}
 		}
 	}
 
 	// if we get here we can destroy the volume
 	if err := p.isiClient.Unexport(context.Background(), isiVolume); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to unexport volume directory %v: %v", isiVolume, err)
 	}
 
 	// if we get here we can destroy the volume
 	if err := p.isiClient.DeleteVolume(context.Background(), isiVolume); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to delete volume directory %v: %v", isiVolume, err)
 	}
 
 	return nil
@@ -193,11 +180,10 @@ func main() {
 	flag.Parse()
 	flag.Set("logtostderr", "true")
 
-	// Bunch of ugliness to handle klog screwiness that's called
-	// from the leaderelection code called by the provisioner
+	// The leaderelection code called by the provisioner uses klog instead of glog,
+	// and fails to correctly initialize the logging to stderr. Fix that here.
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
-
 	// Sync the glog and klog flags.
 	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
 		f2 := klogFlags.Lookup(f1.Name)
@@ -283,7 +269,7 @@ func main() {
 		isiPath,
 	)
 	if err != nil {
-		panic(err)
+		glog.Fatalf("Unable to connect to isilon API: %v", err)
 	}
 
 	glog.Info("Successfully connected to: " + isiEndpoint)

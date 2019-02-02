@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: isilon-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  mountOptions:
+    - nfsvers=3
+  storageClassName: isilon
+  resources:
+    requests:
+      storage: 1Mi
