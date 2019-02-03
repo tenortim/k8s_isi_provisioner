@@ -93,7 +93,8 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		if pvcSize <= 0 {
 			return nil, errors.New("No storage size requested and quotas enabled")
 		}
-		err := p.isiClient.SetQuotaSize(context.Background(), pvName, pvcSize)
+		// create quota with container set to true
+		err := p.isiClient.CreateQuota(context.Background(), pvName, true, pvcSize)
 		if err != nil {
 			glog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
 		}
