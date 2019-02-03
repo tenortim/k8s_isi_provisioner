@@ -163,7 +163,7 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 	}
 
 	// if we get here we can destroy the volume
-	if err := p.isiClient.Unexport(context.Background(), isiVolume); err != nil {
+	if err := p.isiClient.UnexportWithZone(context.Background(), isiVolume, p.accessZone); err != nil {
 		return fmt.Errorf("failed to unexport volume directory %v: %v", isiVolume, err)
 	}
 
