@@ -72,7 +72,10 @@ ___
 Tested against:
 <https://www.emc.com/products-solutions/trial-software-download/isilon.htm>
 
-This provisioner has support for Isilon Storage Quotas, but this has not yet been tested.
+This provisioner has support for Isilon Storage Quotas. When enabled, hard, enforcing directory
+quotas will be created based on the requested size of the volume. The container flag is not
+currently set so the reported size from 'df' will not reflect the limit, but it will be enforced.
+This will a require a revision of the goisilon library to support the functionality.
 
 ## Parameters
 
