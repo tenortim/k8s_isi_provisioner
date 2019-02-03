@@ -50,6 +50,16 @@ or
 
 `kubectl create -f class.yaml`
 
+Note, the NFS mount options that the pod will use are specified at the time that the storage class is created.
+If additional volume mount options (e.g. forcing NFS version 3) are needed, they
+can be specified in the class file:
+
+`oc create -f class-with-mount-options.yaml`
+
+or
+
+`kubectl create -f class-with-mount-options.yaml`
+
 ___
 Example code to create a persistent volume claim named isilon-pvc:
 
@@ -58,15 +68,6 @@ Example code to create a persistent volume claim named isilon-pvc:
 or
 
 `kubectl create -f claim.yaml`
-
-Since the provisioner is dynamic, additional volume mount options (e.g.
-forcing NFS version 3) are now specified in the pvc claim file:
-
-`oc create -f claim-with-mount-options.yaml`
-
-or
-
-`kubectl create -f claim-with-mount-options.yaml`
 
 ___
 Tested against:
