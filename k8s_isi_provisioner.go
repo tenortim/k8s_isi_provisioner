@@ -80,7 +80,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	path := path.Join(p.volumeDir, pvName)
 
 	// Create the mount point directory (k8s volume == isi directory)
-	rcVolume, err := p.isiClient.CreateVolume(context.Background(), pvName)
+	rcVolume, err := p.isiClient.CreateVolumeNoACL(context.Background(), pvName)
 	glog.Infof("Created volume mount point directory: %s", rcVolume)
 	if err != nil {
 		return nil, err
