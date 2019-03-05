@@ -24,7 +24,7 @@ To build the software, run make.
 The provisioner requires various permissions whether you are running it in raw Kubernetes or in OpenShift.
 The persistent-volume-provisioner cluster role in OpenShift 3.11 is missing the needed endpoints permissions and so permissions are supplied by auth.yaml for both OpenShift and pure Kubernetes:
 
-`oc adm create -f auth.yaml`
+`oc create -f auth.yaml`
 
 or
 
