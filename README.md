@@ -7,8 +7,8 @@
 Kubernetes external storage provisioner for Dell Isilon
 
 Based on the following:
-<https://github.com/kubernetes-incubator/external-storage>
-<https://github.com/tenortim/goisilon>
+* <https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner>
+* <https://github.com/tenortim/goisilon>
 
 Instructions:
 In order to use this external provisioner, you can use the image pushed to docker hub "tenortim/k8s\_isi\_provisioner", or build it yourself.
@@ -16,7 +16,7 @@ In order to use this external provisioner, you can use the image pushed to docke
 ## Building
 
 To build this provisioner, ensure you have [Go](https://golang.org/dl/) installed.
-This code requires a minimum of Go 1.11.
+This code requires a minimum of Go 1.11.<br>
 To build the software, run make.
 
 ## Deploying
