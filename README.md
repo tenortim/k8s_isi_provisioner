@@ -90,6 +90,7 @@ ISI\_USER|The user to connect to the isilon as|admin
 ISI\_PASS|Password for the user account|password
 ISI\_GROUP|The default group to assign to the share|users
 ISI\_QUOTA\_ENABLE|Enable the use of quotas.  Defaults to disabled. | FALSE or TRUE
+PROVISIONER\_NAME|Alternate name to allow registering multiple providers with different parameters. Defaults to "isilon"| isilon
 
 ## Thanks
 

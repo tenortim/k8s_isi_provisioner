@@ -42,8 +42,10 @@ import (
 )
 
 const (
-	provisionerName = "isilon.com/isilon"
-	serverEnvVar    = "ISI_SERVER"
+	provisionerDomain      = "isilon.com"
+	provisionerDefaultName = "isilon"
+	serverEnvVar           = "ISI_SERVER"
+	nameEnvVar             = "PROVISIONER_NAME"
 )
 
 type isilonProvisioner struct {
@@ -244,6 +246,11 @@ func main() {
 	if isiPass == "" {
 		glog.Fatal("ISI_GROUP not set")
 	}
+	name := os.Getenv(nameEnvVar)
+	if name == "" {
+		name = provisionerDefaultName
+	}
+	provisionerName := provisionerDomain + "/" + name
 
 	// set isiquota to false by default
 	isiQuota := false
@@ -288,6 +295,7 @@ func main() {
 
 	// Start the provision controller which will dynamically provision isilon
 	// PVs
+	glog.Infof("registering provisioner under name %q", provisionerName)
 	pc := controller.NewProvisionController(clientset, provisionerName, isilonProvisioner, serverVersion.GitVersion, controller.ExponentialBackOffOnError(false), controller.FailedProvisionThreshold(5), controller.ResyncPeriod(15*time.Second))
 	pc.Run(wait.NeverStop)
 }
