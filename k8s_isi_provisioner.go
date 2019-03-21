@@ -108,10 +108,6 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	}
 	glog.Infof("Created Isilon export id: %v", rcExport)
 
-	if err := os.MkdirAll(path, 0777); err != nil {
-		return nil, err
-	}
-
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: options.PVName,
