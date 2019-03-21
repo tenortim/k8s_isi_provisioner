@@ -40,10 +40,10 @@ or
 
 `kubectl create -f pod.yaml`
 
-If you need to create exports in an access zone other than the System zone, set the ISI\_ZONE environment variable in pod.yaml.
+In version 2 of the provisioner, the pod comfiguration is generic and all configuration (cluster, accounts, access zone, quotas etc.) are defined at the storage class level, so a single provisioner instance can configure volumes in multiple different access zones on multiple clusters.
 
 ___
-Create the isilon storage class using the class.yaml file
+Create at least one isilon storage class using the class.yaml file as a template for the class
 
 `oc create -f class.yaml`
 
@@ -61,6 +61,14 @@ or
 
 `kubectl create -f class-with-mount-options.yaml`
 
+The cluster password is now stored as a k8s/OpenShift secret. Create an entry that matches the secretName/secretNamespace in the storage class definition e.g.:
+
+`oc create secret generic cluster1-password --type="isilon.com/isilon" --from-literal=password=sekr3t --namespace=default`
+
+or
+
+`kubectl create secret generic cluster1-password --type="isilon.com/isilon" --from-literal=password=sekr3t --namespace=default`
+
 ___
 Example code to create a persistent volume claim named isilon-pvc:
 
@@ -75,25 +83,26 @@ Tested against:
 <https://www.emc.com/products-solutions/trial-software-download/isilon.htm>
 
 This provisioner has support for Isilon Storage Quotas. When enabled, hard, enforcing directory
-quotas will be created based on the requested size of the volume. The container flag is not
-currently set so the reported size from 'df' will not reflect the limit, but it will be enforced.
-This will a require a revision of the goisilon library to support the functionality.
+quotas will be created based on the requested size of the volume. The container flag is set to true for the quota so
+the reported size from 'df' will correctly reflect the remaining free space against the limit.
 
 ## Parameters
 
+The following parameters are defined at the storage class level:
+
 **Param**|**Description**|**Example**
 :-----:|:-----:|:-----:
-ISI\_SERVER|The DNS name (or IP address) of the Isilon to use for mount requests| isilon.somedomain.com
-ISI\_API\_SERVER|The DNS name (or IP address) of the Isilon to use for API access to create the volume (defaults to ISI\_SERVER)| isilon-mgmt.somedomain.com
-ISI\_PATH|The root path for all exports to be created in| \/ifs\/ose\_exports
-ISI\_ZONE|The access zone for all exports to be created in (defaults to System)|System
-ISI\_USER|The user to connect to the isilon as|admin
-ISI\_PASS|Password for the user account|password
-ISI\_GROUP|The default group to assign to the share|users
-ISI\_QUOTA\_ENABLE|Enable the use of quotas.  Defaults to disabled. | FALSE or TRUE
-PROVISIONER\_NAME|Alternate name to allow registering multiple providers with different parameters. Defaults to "isilon"| isilon
+server|The DNS name (or IP address) of the Isilon to use for mount requests| isilon.somedomain.com
+apiserver|The DNS name (or IP address) of the Isilon to use for API access to create the volume (defaults to the server value)| isilon-mgmt.somedomain.com
+basepath|The base path within \/ifs where exports will be created| \/ifs\/ose\_exports
+apiuser|The user to connect to the isilon as|admin
+secretName|Name of the k8s secret in which the API password is stored|cluster1-password
+secretNamespace|Name of the k8s namespace in which the secret is stored|default
+group|The default group to assign to the share|Users
+quotas|Enable the use of quotas.  Defaults to disabled. | "false" or "true"
+zone|The access zone for in which exports for this storage class are to be created. Defaults to "System"|System
 
 ## Thanks
 
 Thanks to the developers of the Kubernetes external storage provisioner code and the docs that are making this possible to do.
-Thanks to Dell EMC {code} for the great Isilon library.
+Thanks to Dell EMC {code} for the Isilon API binding library.

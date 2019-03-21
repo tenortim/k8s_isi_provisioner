@@ -7,19 +7,4 @@ spec:
     - name: k8s-isi-provisioner
       image: tenortim/k8s_isi_provisioner:latest
       imagePullPolicy: "IfNotPresent"
-      env:
-        - name: ISI_SERVER
-          value: 192.168.5.200
-        - name: ISI_API_SERVER
-          value: 192.168.4.200
-        - name: ISI_PATH
-          value: /ifs/test
-        - name: ISI_USER
-          value: admin
-        - name: ISI_PASS
-          value: password
-        - name: ISI_GROUP
-          value: Users
-        - name: ISI_QUOTA_ENABLE
-          value: "true"
   serviceAccount: k8s-isi-provisioner

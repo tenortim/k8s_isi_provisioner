@@ -22,7 +22,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -38,30 +37,32 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
+	volutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
 const (
-	provisionerDomain      = "isilon.com"
-	provisionerDefaultName = "isilon"
-	serverEnvVar           = "ISI_SERVER"
-	nameEnvVar             = "PROVISIONER_NAME"
+	provisionerName = "isilon.com/isilon"
+	onefsPluginName = "isilon.com/isilon"
+	secretKeyName   = "password"
 )
 
-type isilonProvisioner struct {
-	// Identity of this isilonProvisioner, set to node's name. Used to identify
-	// "this" provisioner's PVs.
-	identity string
-
-	isiClient *isi.Client
-	// The directory to create the new volume in, as well as the
-	// username, password and server to connect to
-	volumeDir string
-	// The access zone in which to create new exports
-	accessZone string
-	// useName    string
-	serverName string
-	// apply/enfoce quotas to volumes
+type provisionerConfig struct {
+	server      string
+	apiServer   string
+	volumeDir   string
+	apiuser     string
+	password    string
+	group       string
 	quotaEnable bool
+	accessZone  string
+}
+
+type isilonProvisioner struct {
+	// Identity of this isilonProvisioner Used to identify
+	// "this" provisioner's PVs.
+	// since we only need one provisioner instance, this may be unnecessary
+	identity  string
+	k8sClient *kubernetes.Clientset
 }
 
 var _ controller.Provisioner = &isilonProvisioner{}
@@ -69,6 +70,17 @@ var version = "Version not set"
 
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
+	// parse storageclass Parameters
+	config, err := parseClassParameters(options.Parameters, p.k8sClient)
+	if err != nil {
+		return nil, err
+	}
+	// connect to the cluster
+	isiClient, err := getIsiClient(config)
+	if err != nil {
+		return nil, err
+	}
+
 	pvcNamespace := options.PVC.Namespace
 	pvcName := options.PVC.Name
 	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
@@ -78,36 +90,36 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 
 	// Create a unique volume name based on the namespace requesting the pv
 	pvName := strings.Join([]string{pvcNamespace, pvcName, options.PVName}, "-")
-	path := path.Join(p.volumeDir, pvName)
+	path := path.Join(config.volumeDir, pvName)
 
 	// Create the mount point directory (k8s volume == isi directory)
-	rcVolume, err := p.isiClient.CreateVolumeNoACL(context.Background(), pvName)
+	rcVolume, err := isiClient.CreateVolumeNoACL(context.Background(), pvName)
 	if err != nil {
 		return nil, err
 	}
 	klog.Infof("Created volume mount point directory: %s", rcVolume)
 
-	err = p.isiClient.SetVolumeMode(context.Background(), pvName, 0777)
+	err = isiClient.SetVolumeMode(context.Background(), pvName, 0777)
 	if err != nil {
 		return nil, err
 	}
 	klog.Infof("Set permissions on volume %s to mode 0777", pvName)
 
 	// if quotas are enabled, we need to set a quota on the volume
-	if p.quotaEnable {
+	if config.quotaEnable {
 		// need to set the quota based on the requested pv size
 		// if a size isnt requested, and quotas are enabled we should fail
 		if pvcSize <= 0 {
 			return nil, errors.New("No storage size requested and quotas enabled")
 		}
 		// create quota with container set to true
-		err := p.isiClient.CreateQuota(context.Background(), pvName, true, pvcSize)
+		err := isiClient.CreateQuota(context.Background(), pvName, true, pvcSize)
 		if err != nil {
 			klog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
 		}
 	}
-	klog.Infof("Creating Isilon export '%s' in zone %s", pvName, p.accessZone)
-	rcExport, err := p.isiClient.ExportVolumeWithZone(context.Background(), pvName, p.accessZone)
+	klog.Infof("Creating Isilon export '%s' in zone %s", pvName, config.accessZone)
+	rcExport, err := isiClient.ExportVolumeWithZone(context.Background(), pvName, config.accessZone)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +142,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 			MountOptions: options.MountOptions,
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				NFS: &v1.NFSVolumeSource{
-					Server:   p.serverName,
+					Server:   config.server,
 					Path:     path,
 					ReadOnly: false,
 				},
@@ -144,6 +156,20 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 // Delete removes the storage asset that was created by Provision represented
 // by the given PV.
 func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
+	// Get details of StorageClass.
+	class, err := volutil.GetClassForVolume(p.k8sClient, volume)
+
+	// parse storageclass Parameters
+	config, err := parseClassParameters(class.Parameters, p.k8sClient)
+	if err != nil {
+		return err
+	}
+	// connect to the cluster
+	isiClient, err := getIsiClient(config)
+	if err != nil {
+		return err
+	}
+
 	ann, ok := volume.Annotations["isilonProvisionerIdentity"]
 	if !ok {
 		return errors.New("identity annotation not found on PV")
@@ -156,26 +182,119 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 		return &controller.IgnoredError{Reason: "No isilon volume defined"}
 	}
 	// Remove quota if enabled
-	if p.quotaEnable {
-		quota, _ := p.isiClient.GetQuota(context.Background(), isiVolume)
+	if config.quotaEnable {
+		quota, _ := isiClient.GetQuota(context.Background(), isiVolume)
 		if quota != nil {
-			if err := p.isiClient.ClearQuota(context.Background(), isiVolume); err != nil {
+			if err := isiClient.ClearQuota(context.Background(), isiVolume); err != nil {
 				return fmt.Errorf("failed to remove quota from %v: %v", isiVolume, err)
 			}
 		}
 	}
 
 	// if we get here we can destroy the volume
-	if err := p.isiClient.UnexportWithZone(context.Background(), isiVolume, p.accessZone); err != nil {
+	if err := isiClient.UnexportWithZone(context.Background(), isiVolume, config.accessZone); err != nil {
 		return fmt.Errorf("failed to unexport volume directory %v: %v", isiVolume, err)
 	}
 
 	// if we get here we can destroy the volume
-	if err := p.isiClient.DeleteVolume(context.Background(), isiVolume); err != nil {
+	if err := isiClient.DeleteVolume(context.Background(), isiVolume); err != nil {
 		return fmt.Errorf("failed to delete volume directory %v: %v", isiVolume, err)
 	}
 
 	return nil
+}
+
+func parseClassParameters(params map[string]string, kubeClient *kubernetes.Clientset) (*provisionerConfig, error) {
+	var cfg provisionerConfig
+	server, ok := params["server"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'server'")
+	}
+	cfg.server = server
+	cfg.apiServer = server
+	if apiServer, ok := params["apiserver"]; ok {
+		cfg.apiServer = apiServer
+	}
+	volumeDir, ok := params["basepath"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'basepath'")
+	}
+	cfg.volumeDir = volumeDir
+	apiuser, ok := params["apiuser"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'apiuser'")
+	}
+	cfg.apiuser = apiuser
+	group, ok := params["group"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'group'")
+	}
+	cfg.group = group
+	cfg.quotaEnable = false
+	if quotaEnable, ok := params["quotas"]; ok {
+		if quotaEnable == "true" {
+			cfg.quotaEnable = true
+		}
+	}
+	cfg.accessZone = "System"
+	if accessZone, ok := params["zone"]; ok {
+		cfg.accessZone = accessZone
+	}
+
+	// obtain password from secret store
+	secretName, ok := params["secretName"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'secretName'")
+	}
+	secretNamespace, ok := params["secretNamespace"]
+	if !ok {
+		return nil, fmt.Errorf("storageclass is missing required parameter 'secretNamespace'")
+	}
+	var err error
+	cfg.password, err = parseSecret(secretNamespace, secretName, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func getIsiClient(config *provisionerConfig) (*isi.Client, error) {
+	isiEndpoint := "https://" + config.apiServer + ":8080"
+	klog.Info("Connecting to Isilon at: " + isiEndpoint)
+
+	i, err := isi.NewClientWithArgs(
+		context.Background(),
+		isiEndpoint,
+		true,
+		config.apiuser,
+		config.group,
+		config.password,
+		config.volumeDir,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to connect to isilon API: %v", err)
+	}
+	return i, nil
+}
+
+// parseSecret finds a given Secret instance and reads apiuser password from it.
+func parseSecret(namespace, secretName string, kubeClient *kubernetes.Clientset) (string, error) {
+	secretMap, err := volutil.GetSecretForPV(namespace, secretName, onefsPluginName, kubeClient)
+	if err != nil {
+		klog.Errorf("failed to get secret: %s/%s: %v", namespace, secretName, err)
+		return "", fmt.Errorf("failed to get secret %s/%s: %v", namespace, secretName, err)
+	}
+	if len(secretMap) == 0 {
+		return "", fmt.Errorf("empty secret map")
+	}
+	for k, v := range secretMap {
+		if k == secretKeyName {
+			return v, nil
+		}
+	}
+
+	return "", fmt.Errorf("secret key %q not found in namespace %q", secretKeyName, namespace)
 }
 
 func main() {
@@ -207,82 +326,11 @@ func main() {
 		klog.Fatalf("Error getting server version: %v", err)
 	}
 
-	// Get server name and NFS root path from environment
-	isiServer := os.Getenv("ISI_SERVER")
-	if isiServer == "" {
-		klog.Fatal("ISI_SERVER not set")
-	}
-	isiAPIServer := os.Getenv("ISI_API_SERVER")
-	if isiServer == "" {
-		klog.Info("No API server variable, reverting to ISI_SERVER")
-		isiAPIServer = isiServer
-	}
-	isiPath := os.Getenv("ISI_PATH")
-	if isiPath == "" {
-		klog.Fatal("ISI_PATH not set")
-	}
-	isiZone := os.Getenv("ISI_ZONE")
-	if isiZone == "" {
-		klog.Info("No access zone variable, defaulting to System")
-		isiZone = "System"
-	}
-	isiUser := os.Getenv("ISI_USER")
-	if isiUser == "" {
-		klog.Fatal("ISI_USER not set")
-	}
-	isiPass := os.Getenv("ISI_PASS")
-	if isiPass == "" {
-		klog.Fatal("ISI_PASS not set")
-	}
-	isiGroup := os.Getenv("ISI_GROUP")
-	if isiPass == "" {
-		klog.Fatal("ISI_GROUP not set")
-	}
-	name := os.Getenv(nameEnvVar)
-	if name == "" {
-		name = provisionerDefaultName
-	}
-	provisionerName := provisionerDomain + "/" + name
-
-	// set isiquota to false by default
-	isiQuota := false
-	isiQuotaEnable := strings.ToUpper(os.Getenv("ISI_QUOTA_ENABLE"))
-
-	if isiQuotaEnable == "TRUE" {
-		klog.Info("Isilon quotas enabled")
-		isiQuota = true
-	} else {
-		klog.Info("ISI_QUOTA_ENABLED not set.  Quota support disabled")
-	}
-
-	isiEndpoint := "https://" + isiAPIServer + ":8080"
-	klog.Info("Connecting to Isilon at: " + isiEndpoint)
-	klog.Info("Creating exports at: " + isiPath)
-
-	i, err := isi.NewClientWithArgs(
-		context.Background(),
-		isiEndpoint,
-		true,
-		isiUser,
-		isiGroup,
-		isiPass,
-		isiPath,
-	)
-	if err != nil {
-		klog.Fatalf("Unable to connect to isilon API: %v", err)
-	}
-
-	klog.Info("Successfully connected to: " + isiEndpoint)
-
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
 	isilonProvisioner := &isilonProvisioner{
-		identity:    isiServer,
-		isiClient:   i,
-		volumeDir:   isiPath,
-		accessZone:  isiZone,
-		serverName:  isiServer,
-		quotaEnable: isiQuota,
+		identity:  provisionerName,
+		k8sClient: clientset,
 	}
 
 	// Start the provision controller which will dynamically provision isilon

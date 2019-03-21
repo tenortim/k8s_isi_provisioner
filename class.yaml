@@ -1,5 +1,15 @@
-apiVersion: storage.k8s.io/v1
 kind: StorageClass
+apiVersion: storage.k8s.io/v1
 metadata:
   name: isilon
 provisioner: isilon.com/isilon
+parameters:
+  server: 192.168.5.200
+  apiserver: 192.168.4.200
+  basepath: /ifs/test
+  apiuser: "admin"
+  secretNamespace: "default"
+  secretName: "cluster1-password"
+  group: Users
+  quotas: "false"
+  zone: "System"
