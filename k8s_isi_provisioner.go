@@ -83,10 +83,16 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 
 	// Create the mount point directory (k8s volume == isi directory)
 	rcVolume, err := p.isiClient.CreateVolumeNoACL(context.Background(), pvName)
-	glog.Infof("Created volume mount point directory: %s", rcVolume)
 	if err != nil {
 		return nil, err
 	}
+	glog.Infof("Created volume mount point directory: %s", rcVolume)
+
+	err = p.isiClient.SetVolumeMode(context.Background(), pvName, 0777)
+	if err != nil {
+		return nil, err
+	}
+	glog.Infof("Set permissions on volume %s to mode 0777", pvName)
 
 	// if quotas are enabled, we need to set a quota on the volume
 	if p.quotaEnable {
