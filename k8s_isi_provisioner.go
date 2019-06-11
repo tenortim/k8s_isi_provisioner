@@ -31,7 +31,6 @@ import (
 
 	isi "github.com/tenortim/goisilon"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,7 +74,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
 	pvcSize := capacity.Value()
 
-	glog.Infof("Got namespace: %s, name: %s, pvName: %s, size: %v", pvcNamespace, pvcName, options.PVName, pvcSize)
+	klog.Infof("Got namespace: %s, name: %s, pvName: %s, size: %v", pvcNamespace, pvcName, options.PVName, pvcSize)
 
 	// Create a unique volume name based on the namespace requesting the pv
 	pvName := strings.Join([]string{pvcNamespace, pvcName, options.PVName}, "-")
@@ -86,13 +85,13 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("Created volume mount point directory: %s", rcVolume)
+	klog.Infof("Created volume mount point directory: %s", rcVolume)
 
 	err = p.isiClient.SetVolumeMode(context.Background(), pvName, 0777)
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("Set permissions on volume %s to mode 0777", pvName)
+	klog.Infof("Set permissions on volume %s to mode 0777", pvName)
 
 	// if quotas are enabled, we need to set a quota on the volume
 	if p.quotaEnable {
@@ -104,15 +103,15 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		// create quota with container set to true
 		err := p.isiClient.CreateQuota(context.Background(), pvName, true, pvcSize)
 		if err != nil {
-			glog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
+			klog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
 		}
 	}
-	glog.Infof("Creating Isilon export '%s' in zone %s", pvName, p.accessZone)
+	klog.Infof("Creating Isilon export '%s' in zone %s", pvName, p.accessZone)
 	rcExport, err := p.isiClient.ExportVolumeWithZone(context.Background(), pvName, p.accessZone)
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("Created Isilon export id: %v", rcExport)
+	klog.Infof("Created Isilon export id: %v", rcExport)
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -185,68 +184,59 @@ func main() {
 	flag.Parse()
 	flag.Set("logtostderr", "true")
 
-	// The leaderelection code called by the provisioner uses klog instead of glog,
-	// and fails to correctly initialize the logging to stderr. Fix that here.
+	// Initialize klog
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
-	// Sync the glog and klog flags.
-	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
-		f2 := klogFlags.Lookup(f1.Name)
-		if f2 != nil {
-			value := f1.Value.String()
-			f2.Value.Set(value)
-		}
-	})
 
-	glog.Info("Starting Isilon Dynamic Provisioner version: " + version)
+	klog.Info("Starting Isilon Dynamic Provisioner version: " + version)
 	// Create an InClusterConfig and use it to create a client for the controller
 	// to use to communicate with Kubernetes
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		glog.Fatalf("Failed to create config: %v", err)
+		klog.Fatalf("Failed to create config: %v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Failed to create client: %v", err)
+		klog.Fatalf("Failed to create client: %v", err)
 	}
 
 	// The controller needs to know what the server version is because out-of-tree
 	// provisioners aren't officially supported until 1.5
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		glog.Fatalf("Error getting server version: %v", err)
+		klog.Fatalf("Error getting server version: %v", err)
 	}
 
 	// Get server name and NFS root path from environment
 	isiServer := os.Getenv("ISI_SERVER")
 	if isiServer == "" {
-		glog.Fatal("ISI_SERVER not set")
+		klog.Fatal("ISI_SERVER not set")
 	}
 	isiAPIServer := os.Getenv("ISI_API_SERVER")
 	if isiServer == "" {
-		glog.Info("No API server variable, reverting to ISI_SERVER")
+		klog.Info("No API server variable, reverting to ISI_SERVER")
 		isiAPIServer = isiServer
 	}
 	isiPath := os.Getenv("ISI_PATH")
 	if isiPath == "" {
-		glog.Fatal("ISI_PATH not set")
+		klog.Fatal("ISI_PATH not set")
 	}
 	isiZone := os.Getenv("ISI_ZONE")
 	if isiZone == "" {
-		glog.Info("No access zone variable, defaulting to System")
+		klog.Info("No access zone variable, defaulting to System")
 		isiZone = "System"
 	}
 	isiUser := os.Getenv("ISI_USER")
 	if isiUser == "" {
-		glog.Fatal("ISI_USER not set")
+		klog.Fatal("ISI_USER not set")
 	}
 	isiPass := os.Getenv("ISI_PASS")
 	if isiPass == "" {
-		glog.Fatal("ISI_PASS not set")
+		klog.Fatal("ISI_PASS not set")
 	}
 	isiGroup := os.Getenv("ISI_GROUP")
 	if isiPass == "" {
-		glog.Fatal("ISI_GROUP not set")
+		klog.Fatal("ISI_GROUP not set")
 	}
 	name := os.Getenv(nameEnvVar)
 	if name == "" {
@@ -259,15 +249,15 @@ func main() {
 	isiQuotaEnable := strings.ToUpper(os.Getenv("ISI_QUOTA_ENABLE"))
 
 	if isiQuotaEnable == "TRUE" {
-		glog.Info("Isilon quotas enabled")
+		klog.Info("Isilon quotas enabled")
 		isiQuota = true
 	} else {
-		glog.Info("ISI_QUOTA_ENABLED not set.  Quota support disabled")
+		klog.Info("ISI_QUOTA_ENABLED not set.  Quota support disabled")
 	}
 
 	isiEndpoint := "https://" + isiAPIServer + ":8080"
-	glog.Info("Connecting to Isilon at: " + isiEndpoint)
-	glog.Info("Creating exports at: " + isiPath)
+	klog.Info("Connecting to Isilon at: " + isiEndpoint)
+	klog.Info("Creating exports at: " + isiPath)
 
 	i, err := isi.NewClientWithArgs(
 		context.Background(),
@@ -279,10 +269,10 @@ func main() {
 		isiPath,
 	)
 	if err != nil {
-		glog.Fatalf("Unable to connect to isilon API: %v", err)
+		klog.Fatalf("Unable to connect to isilon API: %v", err)
 	}
 
-	glog.Info("Successfully connected to: " + isiEndpoint)
+	klog.Info("Successfully connected to: " + isiEndpoint)
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
@@ -297,7 +287,7 @@ func main() {
 
 	// Start the provision controller which will dynamically provision isilon
 	// PVs
-	glog.Infof("registering provisioner under name %q", provisionerName)
+	klog.Infof("registering provisioner under name %q", provisionerName)
 	pc := controller.NewProvisionController(clientset, provisionerName, isilonProvisioner, serverVersion.GitVersion, controller.ExponentialBackOffOnError(false), controller.FailedProvisionThreshold(5), controller.ResyncPeriod(15*time.Second))
 	pc.Run(wait.NeverStop)
 }
