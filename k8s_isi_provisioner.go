@@ -62,6 +62,8 @@ type isilonProvisioner struct {
 	serverName string
 	// apply/enfoce quotas to volumes
 	quotaEnable bool
+	// adds root clients to the export
+	clients []string
 }
 
 var _ controller.Provisioner = &isilonProvisioner{}
@@ -113,6 +115,19 @@ func (p *isilonProvisioner) Provision(options controller.ProvisionOptions) (*v1.
 	}
 	klog.Infof("Created Isilon export id: %v", rcExport)
 
+	if len(p.clients) != 0 {
+		klog.Infof("Add clients '%s' on export id %v", strings.Join(p.clients, ", "), rcExport)
+		err = p.isiClient.SetExportClientsByID(context.Background(), rcExport, p.clients...)
+		if err != nil {
+			return nil, err
+		}
+		klog.Infof("Add root clients '%s' on export id %v", strings.Join(p.clients, ", "), rcExport)
+		err = p.isiClient.SetExportRootClientsByID(context.Background(), rcExport, p.clients...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	mountOptions := []string{""}
 
 	if options.StorageClass.MountOptions != nil {
@@ -156,6 +171,8 @@ func (p *isilonProvisioner) Provision(options controller.ProvisionOptions) (*v1.
 // Delete removes the storage asset that was created by Provision represented
 // by the given PV.
 func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
+	klog.Infof("Removing volume: %v", volume.Name)
+
 	ann, ok := volume.Annotations["isilonProvisionerIdentity"]
 	if !ok {
 		return errors.New("identity annotation not found on PV")
@@ -167,13 +184,18 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 	if !ok {
 		return &controller.IgnoredError{Reason: "No isilon volume defined"}
 	}
+
+	klog.Infof("Got Isilon provisioner: %v, volume: %v", ann, isiVolume)
+
 	// Remove quota if enabled
 	if p.quotaEnable {
 		quota, _ := p.isiClient.GetQuota(context.Background(), isiVolume)
 		if quota != nil {
 			if err := p.isiClient.ClearQuota(context.Background(), isiVolume); err != nil {
+				klog.Errorf("Error removing quota: %v", err)
 				return fmt.Errorf("failed to remove quota from %v: %v", isiVolume, err)
 			}
+			klog.Infof("Removed quota on isilon: %v", quota.Id)
 		}
 	}
 
@@ -182,10 +204,14 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to unexport volume directory %v: %v", isiVolume, err)
 	}
 
+	klog.Infof("Unexported volume on isilon: %v", isiVolume)
+
 	// if we get here we can destroy the volume
 	if err := p.isiClient.DeleteVolume(context.Background(), isiVolume); err != nil {
 		return fmt.Errorf("failed to delete volume directory %v: %v", isiVolume, err)
 	}
+
+	klog.Infof("Deleted volume on isilon: %v", isiVolume)
 
 	return nil
 }
@@ -250,6 +276,13 @@ func main() {
 	if isiPass == "" {
 		klog.Fatal("ISI_GROUP not set")
 	}
+	isiClients := os.Getenv("ISI_CLIENTS")
+	isiClientsArray := []string{}
+	if isiClients == "" {
+		klog.Info("ISI_CLIENTS not set")
+	} else {
+		isiClientsArray = strings.Fields(isiClients)
+	}
 	name := os.Getenv(nameEnvVar)
 	if name == "" {
 		name = provisionerDefaultName
@@ -295,6 +328,7 @@ func main() {
 		accessZone:  isiZone,
 		serverName:  isiServer,
 		quotaEnable: isiQuota,
+		clients:     isiClientsArray,
 	}
 
 	// Start the provision controller which will dynamically provision isilon
