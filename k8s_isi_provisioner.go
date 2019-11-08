@@ -68,7 +68,7 @@ var _ controller.Provisioner = &isilonProvisioner{}
 var version = "Version not set"
 
 // Provision creates a storage asset and returns a PV object representing it.
-func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
+func (p *isilonProvisioner) Provision(options controller.ProvisionOptions) (*v1.PersistentVolume, error) {
 	pvcNamespace := options.PVC.Namespace
 	pvcName := options.PVC.Name
 	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
@@ -113,6 +113,18 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	}
 	klog.Infof("Created Isilon export id: %v", rcExport)
 
+	mountOptions := []string{""}
+
+	if options.StorageClass.MountOptions != nil {
+		mountOptions = options.StorageClass.MountOptions
+	}
+
+	reclaimPolicy := v1.PersistentVolumeReclaimDelete
+
+	if options.StorageClass.ReclaimPolicy != nil {
+		reclaimPolicy = *options.StorageClass.ReclaimPolicy
+	}
+
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: options.PVName,
@@ -122,12 +134,12 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
-			PersistentVolumeReclaimPolicy: options.PersistentVolumeReclaimPolicy,
+			PersistentVolumeReclaimPolicy: reclaimPolicy,
 			AccessModes:                   options.PVC.Spec.AccessModes,
 			Capacity: v1.ResourceList{
 				v1.ResourceName(v1.ResourceStorage): options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)],
 			},
-			MountOptions: options.MountOptions,
+			MountOptions: mountOptions,
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				NFS: &v1.NFSVolumeSource{
 					Server:   p.serverName,
@@ -288,6 +300,14 @@ func main() {
 	// Start the provision controller which will dynamically provision isilon
 	// PVs
 	klog.Infof("registering provisioner under name %q", provisionerName)
-	pc := controller.NewProvisionController(clientset, provisionerName, isilonProvisioner, serverVersion.GitVersion, controller.ExponentialBackOffOnError(false), controller.FailedProvisionThreshold(5), controller.ResyncPeriod(15*time.Second))
+	pc := controller.NewProvisionController(
+		clientset,
+		provisionerName,
+		isilonProvisioner,
+		serverVersion.GitVersion,
+		controller.ExponentialBackOffOnError(false),
+		controller.FailedProvisionThreshold(5),
+		controller.ResyncPeriod(15*time.Second),
+	)
 	pc.Run(wait.NeverStop)
 }
