@@ -85,7 +85,7 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	if err != nil {
 		return nil, err
 	}
-	klog.Infof("Created volume mount point directory: %s", rcVolume)
+	klog.Infof("Created volume mount point directory: %s", rcVolume.Name)
 
 	err = p.isiClient.SetVolumeMode(context.Background(), pvName, 0777)
 	if err != nil {
@@ -103,8 +103,9 @@ func (p *isilonProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		// create quota with container set to true
 		err := p.isiClient.CreateQuota(context.Background(), pvName, true, pvcSize)
 		if err != nil {
-			klog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
+			return nil, err
 		}
+		klog.Infof("Quota set to: %v on directory: %s", pvcSize, pvName)
 	}
 	klog.Infof("Creating Isilon export '%s' in zone %s", pvName, p.accessZone)
 	rcExport, err := p.isiClient.ExportVolumeWithZone(context.Background(), pvName, p.accessZone)
@@ -157,11 +158,18 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 	}
 	// Remove quota if enabled
 	if p.quotaEnable {
-		quota, _ := p.isiClient.GetQuota(context.Background(), isiVolume)
+		quota, err := p.isiClient.GetQuota(context.Background(), isiVolume)
+		if err != nil {
+			klog.Errorf("Unexpected error: quotas are enabled, but failed to retrieve quota for volume %s: %s", isiVolume, err)
+			return err
+		}
 		if quota != nil {
 			if err := p.isiClient.ClearQuota(context.Background(), isiVolume); err != nil {
 				return fmt.Errorf("failed to remove quota from %v: %v", isiVolume, err)
 			}
+			klog.Infof("Successfully removed quota from volume: %s", isiVolume)
+		} else {
+			klog.Warningf("No quota found for volume %s even though quotas are enabled. Problem?", isiVolume)
 		}
 	}
 
@@ -169,11 +177,13 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 	if err := p.isiClient.UnexportWithZone(context.Background(), isiVolume, p.accessZone); err != nil {
 		return fmt.Errorf("failed to unexport volume directory %v: %v", isiVolume, err)
 	}
+	klog.Infof("Successfully removed NFS export for volume: %s", isiVolume)
 
 	// if we get here we can destroy the volume
 	if err := p.isiClient.DeleteVolume(context.Background(), isiVolume); err != nil {
 		return fmt.Errorf("failed to delete volume directory %v: %v", isiVolume, err)
 	}
+	klog.Infof("Successfully removed volume: %s", isiVolume)
 
 	return nil
 }
@@ -181,12 +191,24 @@ func (p *isilonProvisioner) Delete(volume *v1.PersistentVolume) error {
 func main() {
 	syscall.Umask(0)
 
-	flag.Parse()
+	// Initialize klog
 	flag.Set("logtostderr", "true")
+	flag.Set("stderrthreshold", "INFO")
+	flag.Parse()
 
+	// klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
+	// klog.InitFlags(klogFlags)
 	// Initialize klog
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
+	// Sync the command line flags to the klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
 
 	klog.Info("Starting Isilon Dynamic Provisioner version: " + version)
 	// Create an InClusterConfig and use it to create a client for the controller

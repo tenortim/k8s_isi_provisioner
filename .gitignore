@@ -1,3 +1,4 @@
 vendor/*
 k8s_isi_provisioner
 .idea
+.vscode
