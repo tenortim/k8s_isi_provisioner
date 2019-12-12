@@ -1,0 +1,73 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: k8s-isi-provisioner-auth-template
+objects:
+- kind: ServiceAccount
+  apiVersion: v1
+  metadata:
+    name: k8s-isi-provisioner
+    namespace: ${NAMESPACE}
+- kind: ClusterRole
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: k8s-isi-provisioner
+  rules:
+    - apiGroups: [""]
+      resources: ["persistentvolumes"]
+      verbs: ["get", "list", "watch", "create", "delete", "update"]
+    - apiGroups: [""]
+      resources: ["persistentvolumeclaims"]
+      verbs: ["get", "list", "watch", "update"]
+    - apiGroups: ["storage.k8s.io"]
+      resources: ["storageclasses"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["list", "watch", "create", "update", "patch"]
+    - apiGroups: ["extensions"]
+      resources: ["podsecuritypolicies"]
+      resourceNames: ["nfs-provisioner"]
+      verbs: ["use"]
+- kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: k8s-isi-provisioner
+  subjects:
+    - kind: ServiceAccount
+      name: k8s-isi-provisioner
+      namespace: ${NAMESPACE}
+  roleRef:
+    kind: ClusterRole
+    name: k8s-isi-provisioner
+    apiGroup: rbac.authorization.k8s.io
+- kind: Role
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: leader-locking-k8s-isi-provisioner
+  rules:
+    - apiGroups: [""]
+      resources: ["endpoints"]
+      verbs: ["get", "update", "patch"]
+    - apiGroups: [""]
+      resources: ["endpoints"]
+      verbs: ["list", "watch", "create"]
+- kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: leader-locking-k8s-isi-provisioner
+    namespace: ${NAMESPACE}
+  subjects:
+    - kind: ServiceAccount
+      name: k8s-isi-provisioner
+      namespace: ${NAMESPACE}
+  roleRef:
+    kind: Role
+    name: leader-locking-k8s-isi-provisioner
+    apiGroup: rbac.authorization.k8s.io
+parameters:
+- name: NAMESPACE
+  description: Namespace to create the auth resources in
+  required: true
+  value: k8s-isi-provisioner
