@@ -73,6 +73,21 @@ oc process -f openshift/k8s-isi-provisioner-template.yaml \
   -p STORAGE_CLASS_MOUNT_OPTIONS='["nfsvers=3", "nolock"]'
 ```
 
+Example with default `reclaimPolicy` of `Retain`:
+
+```
+oc project ${NAMESPACE}
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_API_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_PATH=/ifs/ocp.example.xyz-pool0 \
+  -p ISI_USER=svc-ocp \
+  -p ISI_PASS=password \
+  -p ISI_QUOTA_ENABLE=TRUE \
+  -p PROVISIONER_NAME=isilon-simulator-pool-0 \
+  -p STORAGE_CLASS_RECLAIM_POLICY=Retain
+```
+
 Example for creating two different provisioners for two different isilon pools:
 ```
 oc project ${NAMESPACE}

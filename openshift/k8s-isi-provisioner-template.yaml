@@ -10,6 +10,7 @@ objects:
     name: ${PROVISIONER_NAME}
   provisioner: "isilon.com/${PROVISIONER_NAME}"
   mountOptions: ${{STORAGE_CLASS_MOUNT_OPTIONS}}
+  reclaimPolicy: ${STORAGE_CLASS_RECLAIM_POLICY}
 - kind: Secret
   apiVersion: v1
   metadata:
@@ -107,6 +108,10 @@ parameters:
 - name: STORAGE_CLASS_MOUNT_OPTIONS
   description: Array of mount options for the StorageClass
   value: "[]"
+- name: STORAGE_CLASS_RECLAIM_POLICY
+  description: The default reclaim policy used by the StorageClass. Options [Delete|Reclaim]. Default is Delete.
+  value: Delete
+  required: true
 - name: IMAGE_NAME
   description: Name of the image to use for the k8s_isi_provisioner Pod
   value: tenortim/k8s_isi_provisioner:latest
