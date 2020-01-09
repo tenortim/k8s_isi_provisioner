@@ -22,64 +22,163 @@ To build the software, run make.
 
 ## Deploying
 
+### OpenShift with Templates
+
+This method of creating the resources uses a DeploymentConfig for Pod availablity as well as a Secret for the `ISI_PASS`.
+
+#### 1. Create namespace
+```
+NAMESPACE=k8s-isi-provisioner
+oc new-project ${NAMESPACE}
+```
+
+#### 2. Create authentication & authorization resources
+
 The provisioner requires various permissions whether you are running it in raw Kubernetes or in OpenShift.
 The persistent-volume-provisioner cluster role in OpenShift 3.11 is missing the needed endpoints permissions and so permissions are supplied by auth.yaml for both OpenShift and pure Kubernetes:
 
-`oc create -f auth.yaml`
+Standard Example:
+```
+oc project ${NAMESPACE}
+oc process -f openshift/auth-template.yaml \
+  -p NAMESPACE=${NAMESPACE} \
+| oc create -f -
+```
+
+See [openshift/auth-template.yaml](openshift/auth-template.yaml) for full template parameter list and descriptions.
+
+#### 3. Create k8s-isi-provisioner resources
+
+Bare minimum parameters:
+```
+oc project ${NAMESPACE}
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER= \
+  -p ISI_PATH= \
+  -p ISI_USER= \
+  -p ISI_PASS=
+```
+
+Example with `STORAGE_CLASS_MOUNT_OPTIONS`:
+```
+oc project ${NAMESPACE}
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_API_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_PATH=/ifs/ocp.example.xyz-pool0 \
+  -p ISI_USER=svc-ocp \
+  -p ISI_PASS=password \
+  -p ISI_QUOTA_ENABLE=TRUE \
+  -p PROVISIONER_NAME=isilon-simulator-pool-0 \
+  -p STORAGE_CLASS_MOUNT_OPTIONS='["nfsvers=3", "nolock"]'
+```
+
+Example with default `reclaimPolicy` of `Retain`:
+
+```
+oc project ${NAMESPACE}
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_API_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_PATH=/ifs/ocp.example.xyz-pool0 \
+  -p ISI_USER=svc-ocp \
+  -p ISI_PASS=password \
+  -p ISI_QUOTA_ENABLE=TRUE \
+  -p PROVISIONER_NAME=isilon-simulator-pool-0 \
+  -p STORAGE_CLASS_RECLAIM_POLICY=Retain
+```
+
+Example for creating two different provisioners for two different isilon pools:
+```
+oc project ${NAMESPACE}
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_API_SERVER=emc-isilon-onefs-simulator-pool0.example.xyz \
+  -p ISI_PATH=/ifs/ocp.example.xyz-pool0 \
+  -p ISI_USER=svc-ocp \
+  -p ISI_PASS=password \
+  -p ISI_QUOTA_ENABLE=TRUE \
+  -p PROVISIONER_NAME=isilon-simulator-pool-0
+  
+oc process -f openshift/k8s-isi-provisioner-template.yaml \
+  -p ISI_SERVER=emc-isilon-onefs-simulator-pool1.example.xyz \
+  -p ISI_API_SERVER=emc-isilon-onefs-simulator-pool1.example.xyz \
+  -p ISI_PATH=/ifs/ocp.example.xyz-pool1 \
+  -p ISI_USER=svc-ocp \
+  -p ISI_PASS=foobar \
+  -p ISI_QUOTA_ENABLE=TRUE \
+  -p PROVISIONER_NAME=isilon-simulator-pool-1
+```
+
+
+See [openshift/k8s-isi-provisioner-template.yaml](openshift/auth-template.yaml) for full template parameter list and descriptions.
+
+### Kubernetes or Openshift Using Indvidual Resources
+
+The provisioner requires various permissions whether you are running it in raw Kubernetes or in OpenShift.
+The persistent-volume-provisioner cluster role in OpenShift 3.11 is missing the needed endpoints permissions and so permissions are supplied by auth.yaml for both OpenShift and pure Kubernetes:
+
+`oc create -f kubernetes/auth.yaml`
 
 or
 
-`kubectl create -f auth.yaml`
+`kubectl create -f kubernetes/auth.yaml`
 
 ___
 To deploy the provisioner, run
 
-`oc create -f pod.yaml`
+`oc create -f kubernetes/pod.yaml`
 
 or
 
-`kubectl create -f pod.yaml`
+`kubectl create -f kubernetes/pod.yaml`
 
 If you need to create exports in an access zone other than the System zone, set the ISI\_ZONE environment variable in pod.yaml.
 
 ___
 Create the isilon storage class using the class.yaml file
 
-`oc create -f class.yaml`
+`oc create -f kubernetes/class.yaml`
 
 or
 
-`kubectl create -f class.yaml`
+`kubectl create -f kubernetes/class.yaml`
 
 Note, the NFS mount options that the pod will use are specified at the time that the storage class is created.
 If additional volume mount options (e.g. forcing NFS version 3) are needed, they
 can be specified in the class file:
 
-`oc create -f class-with-mount-options.yaml`
+`oc create -f kubernetes/class-with-mount-options.yaml`
 
 or
 
-`kubectl create -f class-with-mount-options.yaml`
+`kubectl create -f kubernetes/class-with-mount-options.yaml`
 
 ___
 Example code to create a persistent volume claim named isilon-pvc:
 
-`oc create -f claim.yaml`
+`oc create -f kubernetes/claim.yaml`
 
 or
 
-`kubectl create -f claim.yaml`
+`kubectl create -f kubernetes/claim.yaml`
 
 ___
-Tested against:
-<https://www.emc.com/products-solutions/trial-software-download/isilon.htm>
 
+## Tested Intigrations
+Isilon Version:
+* 8.2.1.0 (https://www.emc.com/products-solutions/trial-software-download/isilon.htm)
+
+OpenShift Versions:
+* 3.11.154
+
+Quotas:
 This provisioner has support for Isilon Storage Quotas. When enabled, hard, enforcing directory
 quotas will be created based on the requested size of the volume. The container flag is not
 currently set so the reported size from 'df' will not reflect the limit, but it will be enforced.
 This will a require a revision of the goisilon library to support the functionality.
 
-## Parameters
+## Pod Environment Variables
 
 **Param**|**Description**|**Example**
 :-----:|:-----:|:-----:

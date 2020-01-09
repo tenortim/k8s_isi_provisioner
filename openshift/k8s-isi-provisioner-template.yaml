@@ -1,0 +1,118 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: k8s-isi-provisioner-template
+objects:
+- kind: StorageClass
+  apiVersion: storage.k8s.io/v1
+  metadata:
+    name: ${PROVISIONER_NAME}
+  provisioner: "isilon.com/${PROVISIONER_NAME}"
+  mountOptions: ${{STORAGE_CLASS_MOUNT_OPTIONS}}
+  reclaimPolicy: ${STORAGE_CLASS_RECLAIM_POLICY}
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+  type: Opaque 
+  stringData: 
+    ISI_PASS: "${ISI_PASS}"
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    labels:
+      name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+      external-storage: isilon
+    name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+  spec:
+    replicas: 2
+    revisionHistoryLimit: 10
+    selector:
+      name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+          external-storage: isilon
+        name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+      spec:
+        containers:
+        - name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+          image: ${IMAGE_NAME}
+          imagePullPolicy: "IfNotPresent"
+          env:
+          - name: ISI_SERVER
+            value: ${ISI_SERVER}
+          - name: ISI_API_SERVER
+            value: ${ISI_API_SERVER}
+          - name: ISI_PATH
+            value: ${ISI_PATH}
+          - name: ISI_ZONE
+            value: ${ISI_ZONE}
+          - name: ISI_USER
+            value: ${ISI_USER}
+          - name: ISI_PASS
+            valueFrom:
+              secretKeyRef:
+                name: "k8s-isi-provisioner-${PROVISIONER_NAME}"
+                key: ISI_PASS
+          - name: ISI_GROUP
+            value: ${ISI_GROUP}
+          - name: ISI_QUOTA_ENABLE
+            value: ${ISI_QUOTA_ENABLE}
+          - name: PROVISIONER_NAME
+            value: ${PROVISIONER_NAME}
+        serviceAccount: k8s-isi-provisioner
+parameters:
+- name: ISI_SERVER
+  description: The DNS name (or IP address) of the Isilon to use for mount requests
+  required: true
+- name: ISI_API_SERVER
+  description: The DNS name (or IP address) of the Isilon to use for API access to create the volume (defaults to ISI_SERVER)
+- name: ISI_PATH
+  description: The root path for all exports to be created in
+  required: true
+- name: ISI_ZONE
+  description: The access zone for all exports to be created in (defaults to System)
+  required: true
+  value: System
+- name: ISI_USER
+  description: The user to connect to the isilon as
+  required: true
+- name: ISI_PASS
+  description: Password for the user account
+  required: true
+- name: ISI_GROUP
+  description: The default group to assign to the share
+  required: true
+  value: Users
+- name: ISI_QUOTA_ENABLE
+  description: Enable the use of quotas. Defaults to disabled. If enabled but SmartQuotas not enabled on cluster will have no affect.
+  required: true
+  value: "FALSE"
+- name: PROVISIONER_NAME
+  description: Alternate name to allow registering multiple providers with different parameters. Defaults to "isilon"
+  required: true
+  value: isilon
+- name: STORAGE_CLASS_MOUNT_OPTIONS
+  description: Array of mount options for the StorageClass
+  value: "[]"
+- name: STORAGE_CLASS_RECLAIM_POLICY
+  description: The default reclaim policy used by the StorageClass. Options [Delete|Reclaim]. Default is Delete.
+  value: Delete
+  required: true
+- name: IMAGE_NAME
+  description: Name of the image to use for the k8s_isi_provisioner Pod
+  value: tenortim/k8s_isi_provisioner:latest
+  required: true
